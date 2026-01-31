@@ -1080,3 +1080,30 @@ def test_contain_symlinks_option_precedence(tmpdir, capfd) -> None:
         with pytest.raises(OSError) as exc_info:
             os.readlink(pjoin(mnt_dir, "abs"))
         assert exc_info.value.errno == errno.EPERM
+
+
+def test_backslash_escape(capfd):
+    """Regression test for parsing backslash escape sequences in options"""
+
+    cases = [
+        (r"one two three", "<one> <two> <three>"),
+        (r"one\\ two three", "<one two> <three>"),
+        # fuse_opt_parse interprets "\ " as " ", so these are still separate
+        (r"one two\ three", "<one> <two> <three>"),
+    ]
+
+    for line, args in cases:
+        cmdline = base_cmdline + [
+            pjoin(basename, "sshfs"),
+            "-f",
+            "localhost:foo",
+            "/dev/null",
+            "-o",
+            "sshfs_debug",
+            "-o",
+            "ssh_command=/dev/null " + line,
+        ]
+        assert subprocess.run(cmdline).returncode != 0
+
+        captured = capfd.readouterr()
+        assert "executing </dev/null> " + args in captured.err
